@@ -128,7 +128,7 @@ SchemaHolder<TSchema>::create_property_definition(std::string name, const std::t
     s_properties_->insert(resolver_pair);
     s_properties_types->insert(type_pair);
 
-    std::cout << "Registering a property: " << name << "(" << type_name(type)  << ")" <<  " with resolver of type: " << typeid(TPropertyValueResolver).name() << std::endl;
+    std::cout << "Registering a property: " << name << "(" << type_name(type)  << ")" <<  " with resolver of type: " << type_name(typeid(TPropertyValueResolver)) << std::endl;
     return SchemaPropertyDefinition<TSchema, TPropertyValueResolver>();
 }
 
