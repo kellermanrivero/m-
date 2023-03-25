@@ -7,10 +7,10 @@
 
 #include "../../metamodel.h"
 
-struct SampleMetaModel: MetaModel {
-    SCHEMA_PROPERTY(SampleMetaModel, std::string, SchemaPropertyValueResolver, id);
-    SCHEMA_PROPERTY(SampleMetaModel, std::string, SchemaPropertyValueResolver, name);
-    SCHEMA_PROPERTY(SampleMetaModel, int, SchemaPropertyValueResolver, age);
+struct SampleMetaModel: MetaModel<SampleMetaModel> {
+    SCHEMA_PROPERTY(std::string, SchemaPropertyValueResolver, id);
+    SCHEMA_PROPERTY(std::string, SchemaPropertyValueResolver, name);
+    SCHEMA_PROPERTY(int, SchemaPropertyValueResolver, age);
 };
 
 #endif //MPP_SAMPLE_META_MODEL_H

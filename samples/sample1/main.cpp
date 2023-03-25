@@ -6,7 +6,7 @@ int main() {
     SampleMetaModel x = {};
     SampleMetaModel y = {};
 
-    for(auto [name, definition]: x.get_schema().get_properties<SampleMetaModel>()) {
+    for(auto [name, definition]: x.get_schema().get_properties()) {
         std::cout << "Found definition " << definition.get_type_name() << " for property: " << name << std::endl;
     }
 

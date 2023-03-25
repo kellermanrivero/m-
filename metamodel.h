@@ -100,22 +100,20 @@ typedef std::unordered_map<std::string, SchemaPropertyDefinition> SchemaDefiniti
 typedef std::pair<std::type_index, SchemaDefinitionMap> SchemaPair;
 typedef std::unordered_map<std::type_index, SchemaDefinitionMap> Schemas;
 
+template<typename TSchema>
 class SchemaHolder {
 public:
     SchemaHolder() = default;
 
-    template<typename TSchema>
     static SchemaProperty
             create_property(TSchema *schema, SchemaPropertyDefinition definition);
 
-    template<typename TSchema>
     static SchemaPropertyDefinition
             create_property_definition(
                 const std::string & name,
                 const std::type_info & type,
                 SchemaPropertyValueResolver *resolver);
 
-    template<typename TSchema>
     static std::vector<SchemaPropertyDefinitionPair> get_properties() {
         std::vector<SchemaPropertyDefinitionPair> values;
         std::type_index schema_id(typeid(TSchema));
@@ -136,7 +134,7 @@ private:
 
 template<typename TSchema>
 SchemaProperty
-SchemaHolder::create_property(TSchema *schema, SchemaPropertyDefinition definition) {
+SchemaHolder<TSchema>::create_property(TSchema *schema, SchemaPropertyDefinition definition) {
     std::cout << "Creating an instance property: " << definition.get_name() << "(" << definition.get_type_name() << ")" << std::endl;
     auto property = std::make_shared<SchemaProperty>(definition);
     schema->register_property(property);
@@ -146,7 +144,7 @@ SchemaHolder::create_property(TSchema *schema, SchemaPropertyDefinition definiti
 
 template<typename TSchema>
 SchemaPropertyDefinition
-SchemaHolder::create_property_definition(
+SchemaHolder<TSchema>::create_property_definition(
         const std::string & name,
         const std::type_info & type,
         SchemaPropertyValueResolver *resolver) {
@@ -172,12 +170,13 @@ SchemaHolder::create_property_definition(
     return definition;
 }
 
+template<typename TSchema>
 class MetaModel {
-private:
-    inline static SchemaHolder schema_;
+protected:
+    inline static SchemaHolder<TSchema> schema_;
     std::vector<std::shared_ptr<SchemaProperty>> properties_;
 public:
-    static SchemaHolder get_schema() {
+    static SchemaHolder<TSchema> get_schema() {
         return schema_;
     }
 
@@ -191,15 +190,15 @@ public:
 };
 
 /// Macros
-#define SCHEMA_PROPERTY(schema, type, resolver, name) \
-    private:                                          \
-inline static const SchemaPropertyDefinition          \
-    name##_property_definition =                      \
-        SchemaHolder::create_property_definition<schema>(#name, typeid(type), new resolver()); \
-public:                                               \
-SchemaProperty                                        \
-    name =                                            \
-        SchemaHolder::create_property<schema>(this, schema::name##_property_definition);
+#define SCHEMA_PROPERTY(type, resolver, name) \
+    private:                                  \
+inline static const SchemaPropertyDefinition  \
+    name##_property_definition =              \
+        schema_.create_property_definition(#name, typeid(type), new resolver()); \
+public:                                       \
+SchemaProperty                                \
+    name =                                    \
+        schema_.create_property(this, name##_property_definition);
 
 
 #endif //MPP_METAMODEL_H
