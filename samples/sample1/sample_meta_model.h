@@ -7,7 +7,7 @@
 
 #include "../../metamodel.h"
 
-struct SampleMetaModel: MetaModel<SampleMetaModel> {
+struct SampleMetaModel: MetaModel {
     SCHEMA_PROPERTY(SampleMetaModel, std::string, SchemaPropertyValueResolver, id);
     SCHEMA_PROPERTY(SampleMetaModel, std::string, SchemaPropertyValueResolver, name);
     SCHEMA_PROPERTY(SampleMetaModel, int, SchemaPropertyValueResolver, age);

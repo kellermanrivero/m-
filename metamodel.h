@@ -29,6 +29,19 @@ inline std::string type_name(const std::type_info & type) {
     return res.get();
 }
 
+inline std::string type_name(const std::type_index & type) {
+    int status = 0;
+
+    std::unique_ptr<char, void(*)(void*)> res {
+            abi::__cxa_demangle(type.name(), nullptr, 0, &status),
+            std::free
+    };
+
+    if (status != 0) throw status; // stub
+
+    return res.get();
+}
+
 /// Context object passed across
 class ResolutionContext {};
 
@@ -40,118 +53,154 @@ public:
 
 #pragma Schema Property
 
-/// Schema property definition
-template<typename TSchema, typename TPropertyType>
-class SchemaProperty {
-public:
-    SchemaProperty(std::string name, const std::type_info & type):
-        name_(std::move(name)),
-        type_(type) {
-    }
-
-    TPropertyType getValue() {
-        return value_;
-    }
-private:
-    TPropertyType value_ = {};
-    std::string name_;
-    std::type_index type_;
-};
-
-template<typename TSchema, typename TResolver>
 class SchemaPropertyDefinition {
 public:
-    SchemaPropertyDefinition() = default;
+    explicit SchemaPropertyDefinition(
+            std::string  name,
+            const std::type_info & type,
+            SchemaPropertyValueResolver *resolver):
+        name_(std::move(name)), type_(type), resolver_(resolver) { };
+    std::string get_name() { return name_; }
+    std::type_index get_type() { return type_; }
+    std::string get_type_name() { return type_.name(); }
+private:
+    std::string name_;
+    std::type_index type_;
+    SchemaPropertyValueResolver *resolver_;
+};
+
+class SchemaPropertyValue {
+public:
+    SchemaPropertyValue() = default;
+};
+
+/// Schema property definition
+class SchemaProperty {
+public:
+    explicit SchemaProperty(const SchemaPropertyDefinition & definition):
+            definition_(definition) {}
+
+    SchemaPropertyValue get_value() {
+        return value_;
+    }
+
+    SchemaPropertyDefinition get_definition() {
+        return definition_;
+    }
+
+private:
+    SchemaPropertyValue value_;
+    SchemaPropertyDefinition definition_;
 };
 
 #pragma Schema Builder
 
-typedef std::unordered_map<std::string, std::shared_ptr<SchemaPropertyValueResolver>> SchemaPropertyValueResolverMap;
-typedef std::unordered_map<std::string, const std::type_info &> SchemaPropertyTypeMap;
+typedef std::pair<std::string, SchemaPropertyDefinition> SchemaPropertyDefinitionPair;
+typedef std::unordered_map<std::string, SchemaPropertyDefinition> SchemaDefinitionMap;
+typedef std::pair<std::type_index, SchemaDefinitionMap> SchemaPair;
+typedef std::unordered_map<std::type_index, SchemaDefinitionMap> Schemas;
 
-template<typename TSchema>
 class SchemaHolder {
 public:
     SchemaHolder() = default;
 
-    template<typename TPropertyType>
-    static SchemaProperty<TSchema, TPropertyType>
-            create_property(
-                std::string name,
-                const std::type_info & type);
+    template<typename TSchema>
+    static SchemaProperty
+            create_property(TSchema *schema, SchemaPropertyDefinition definition);
 
-    template<typename TPropertyType, typename TPropertyValueResolver>
-    static SchemaPropertyDefinition<TSchema, TPropertyValueResolver>
+    template<typename TSchema>
+    static SchemaPropertyDefinition
             create_property_definition(
-                std::string name,
-                const std::type_info & type);
+                const std::string & name,
+                const std::type_info & type,
+                SchemaPropertyValueResolver *resolver);
 
-    static std::vector<std::pair<std::string, SchemaPropertyValueResolver>> get_properties() {
-        std::vector<std::pair<std::string, SchemaPropertyValueResolver>> vals;
-        vals.reserve(s_properties_->size());
+    template<typename TSchema>
+    static std::vector<SchemaPropertyDefinitionPair> get_properties() {
+        std::vector<SchemaPropertyDefinitionPair> values;
+        std::type_index schema_id(typeid(TSchema));
+        auto schemas = *schemas_;
+        auto size = schemas[schema_id].size();
 
-        for(const auto& kv : *s_properties_) {
-            vals.emplace_back(kv.first, *kv.second);
+        values.reserve(size);
+
+        for(const auto& kv : schemas[schema_id]) {
+            values.emplace_back(kv.first, kv.second);
         }
-        return vals;
+
+        return values;
     }
 private:
-    inline static std::unique_ptr<SchemaPropertyValueResolverMap> s_properties_ = {};
-    inline static std::unique_ptr<SchemaPropertyTypeMap> s_properties_types = {};
+    inline static std::unique_ptr<Schemas> schemas_ = {};
 };
 
-
 template<typename TSchema>
-template<typename TPropertyType>
-SchemaProperty<TSchema, TPropertyType> SchemaHolder<TSchema>::create_property(std::string name, const std::type_info & type) {
-    std::cout << "Creating an instance property: " << name << " of type: " << type_name(type) << std::endl;
-    return SchemaProperty<TSchema, TPropertyType>(name, type);
+SchemaProperty
+SchemaHolder::create_property(TSchema *schema, SchemaPropertyDefinition definition) {
+    std::cout << "Creating an instance property: " << definition.get_name() << "(" << definition.get_type_name() << ")" << std::endl;
+    auto property = std::make_shared<SchemaProperty>(definition);
+    schema->register_property(property);
+    return *property;
 }
 
+
 template<typename TSchema>
-template<typename TPropertyType, typename TPropertyValueResolver>
-SchemaPropertyDefinition<TSchema, TPropertyValueResolver>
-SchemaHolder<TSchema>::create_property_definition(std::string name, const std::type_info & type) {
-    if (s_properties_ == nullptr) {
-        s_properties_ = std::make_unique<SchemaPropertyValueResolverMap>();
+SchemaPropertyDefinition
+SchemaHolder::create_property_definition(
+        const std::string & name,
+        const std::type_info & type,
+        SchemaPropertyValueResolver *resolver) {
+    if (schemas_ == nullptr) {
+        schemas_ = std::make_unique<Schemas>();
     }
 
-    if (s_properties_types == nullptr) {
-        s_properties_types = std::make_unique<SchemaPropertyTypeMap>();
+    SchemaPropertyDefinition definition(name, type, resolver);
+    SchemaPropertyDefinitionPair definition_pair(name, definition);
+    std::type_index schema_id(typeid(TSchema));
+
+    auto it = schemas_->find(schema_id);
+    if(it != schemas_->end()) {
+        it->second.insert(definition_pair);
+    } else {
+        SchemaDefinitionMap definition_map {};
+        definition_map.insert(definition_pair);
+        SchemaPair schema_pair(schema_id, definition_map);
+        schemas_->insert(schema_pair);
     }
 
-    std::shared_ptr<TPropertyValueResolver> resolver = std::make_shared<TPropertyValueResolver>();
-    std::pair<std::string, std::shared_ptr<TPropertyValueResolver>> resolver_pair = std::pair<std::string, std::shared_ptr<TPropertyValueResolver>>(name, resolver);
-
-    std::pair<std::string, const std::type_info &> type_pair = std::pair<std::string, const std::type_info &>(name, type);
-
-    s_properties_->insert(resolver_pair);
-    s_properties_types->insert(type_pair);
-
-    std::cout << "Registering a property: " << name << "(" << type_name(type)  << ")" <<  " with resolver of type: " << type_name(typeid(TPropertyValueResolver)) << std::endl;
-    return SchemaPropertyDefinition<TSchema, TPropertyValueResolver>();
+    std::cout << "Registering a property definition: " << name <<  " => " << type_name(typeid(resolver)) << std::endl;
+    return definition;
 }
 
+class MetaModel {
+private:
+    inline static SchemaHolder schema_;
+    std::vector<std::shared_ptr<SchemaProperty>> properties_;
+public:
+    static SchemaHolder get_schema() {
+        return schema_;
+    }
+
+    std::vector<std::shared_ptr<SchemaProperty>> get_properties() {
+        return properties_;
+    }
+
+    void register_property(const std::shared_ptr<SchemaProperty>& property) {
+        properties_.push_back(property);
+    }
+};
 
 /// Macros
 #define SCHEMA_PROPERTY(schema, type, resolver, name) \
     private:                                          \
-inline static const SchemaPropertyDefinition<schema, resolver> \
-    name##_property_resolver =                        \
-        SchemaHolder<schema>::create_property_definition<type, resolver>(#name, typeid(type)); \
+inline static const SchemaPropertyDefinition          \
+    name##_property_definition =                      \
+        SchemaHolder::create_property_definition<schema>(#name, typeid(type), new resolver()); \
 public:                                               \
-SchemaProperty<schema, type>                          \
-    name =                                          \
-        SchemaHolder<schema>::create_property<type>(#name, typeid(type));
+SchemaProperty                                        \
+    name =                                            \
+        SchemaHolder::create_property<schema>(this, schema::name##_property_definition);
 
-template<typename TSchema>
-class MetaModel {
-private:
-    inline static SchemaHolder<TSchema> schema_;
-public:
-    SchemaHolder<TSchema> get_schema() {
-        return schema_;
-    }
-};
+
 #endif //MPP_METAMODEL_H
 
