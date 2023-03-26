@@ -190,15 +190,17 @@ public:
 };
 
 /// Macros
-#define SCHEMA_PROPERTY(type, resolver, name) \
-    private:                                  \
-inline static const SchemaPropertyDefinition  \
-    name##_property_definition =              \
+#define SCHEMA_PROPERTY_WITH_RESOLVER(type, name, resolver) \
+    private:                                                \
+inline static const SchemaPropertyDefinition                \
+    name##_property_definition =                            \
         schema_.create_property_definition(#name, typeid(type), new resolver()); \
-public:                                       \
-SchemaProperty                                \
-    name =                                    \
+public:                                                     \
+SchemaProperty                                              \
+    name =                                                  \
         schema_.create_property(this, name##_property_definition);
+
+#define SCHEMA_PROPERTY(type, name) SCHEMA_PROPERTY_WITH_RESOLVER(type, name, SchemaPropertyValueResolver)
 
 
 #endif //MPP_METAMODEL_H

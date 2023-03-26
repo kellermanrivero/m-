@@ -8,9 +8,9 @@
 #include "../../metamodel.h"
 
 struct SampleMetaModel: MetaModel<SampleMetaModel> {
-    SCHEMA_PROPERTY(std::string, SchemaPropertyValueResolver, id);
-    SCHEMA_PROPERTY(std::string, SchemaPropertyValueResolver, name);
-    SCHEMA_PROPERTY(int, SchemaPropertyValueResolver, age);
+    SCHEMA_PROPERTY(std::string, id);
+    SCHEMA_PROPERTY(std::string, name);
+    SCHEMA_PROPERTY(int, age);
 };
 
 #endif //MPP_SAMPLE_META_MODEL_H
