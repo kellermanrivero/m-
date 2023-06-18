@@ -4,7 +4,7 @@
 
 #ifndef MPP_METAMODEL_H
 #define MPP_METAMODEL_H
-
+#include <memory>
 #include <iostream>
 #include <string>
 #include <utility>
